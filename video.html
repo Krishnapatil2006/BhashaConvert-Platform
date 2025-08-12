@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Whisper Video/Audio to Subtitle (SRT) Transcriber</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@500;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #f6f9fe;
+      --panel: #fff;
+      --border: #dde7f5;
+      --accent: #007aff;
+      --accent2: #048958;
+      --text: #22304a;
+    }
+    body {
+      background: var(--bg);
+      font-family: 'Roboto', Arial, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      margin: 0;
+    }
+    .container {
+      max-width: 420px;
+      margin: 4vw auto;
+      background: var(--panel);
+      border-radius: 13px;
+      box-shadow: 0 5px 24px #7fb0dd13;
+      padding: 2rem 2rem 2.2rem 2rem;
+      border: 1.2px solid var(--border);
+    }
+    h1 {
+      text-align: center;
+      margin: 0 0 1.6rem 0;
+      letter-spacing: 0.5px;
+      font-size: 1.5rem;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 0.7rem;
+      font-size: 1.05rem;
+    }
+    .file-input {
+      width: 100%;
+      padding: 0.8rem;
+      border: 1.3px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+      margin-bottom: 1.2rem;
+      background: #f4f8fc;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 0.88rem 0;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      outline: none;
+      border-radius: 7px;
+      font-size: 1.07rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      box-shadow: 0 2px 6px #70b6ff17;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #005ea8;
+    }
+    .progress {
+      margin: 1.5rem auto 0 auto;
+      width: 85%;
+      height: 7px;
+      background: #e3effc;
+      border-radius: 6px;
+      overflow: hidden;
+      display: none;
+    }
+    .progress-inner {
+      height: 100%;
+      width: 0;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 6px;
+      transition: width 0.4s cubic-bezier(.51,.92,.25,1);
+    }
+    #result {
+      margin-top: 1.5rem;
+      text-align: center;
+      font-size: 1.05rem;
+      color: var(--text);
+      min-height: 32px;
+    }
+    #download-link {
+      display: none;
+      margin-top: 1.1rem;
+      background: var(--accent2);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      padding: 0.78rem 2rem;
+      font-size: 1.03rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.16s;
+    }
+    #download-link:hover {
+      background: #005328;
+    }
+    @media (max-width: 500px) {
+      .container { padding: 1.2rem 0.8rem; }
+      h1 { font-size: 1.14rem;}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Auto Subtitle Generator (.SRT)</h1>
+    <form id="transcribe-form" enctype="multipart/form-data">
+      <label for="file">Upload audio or video file:</label>
+      <input class="file-input" type="file" id="file" name="file" accept="audio/*,video/*" required />
+      <button class="btn" type="submit" id="transcribe-btn">Transcribe</button>
+    </form>
+    <div class="progress" id="progress-bar">
+      <div class="progress-inner" id="progress-inner"></div>
+    </div>
+    <div id="result"></div>
+    <a id="download-link" href="#" download="subtitles.srt">Download Subtitles (.srt)</a>
+  </div>
+  <script>
+    const form = document.getElementById('transcribe-form');
+    const progressBar = document.getElementById('progress-bar');
+    const progressInner = document.getElementById('progress-inner');
+    const resultDiv = document.getElementById('result');
+    const downloadLink = document.getElementById('download-link');
+    const btn = document.getElementById('transcribe-btn');
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      resultDiv.textContent = '';
+      downloadLink.style.display = "none";
+      progressBar.style.display = "block";
+      progressInner.style.width = "0";
+      btn.disabled = true;
+      btn.textContent = "Transcribing...";
+
+      const file = document.getElementById('file').files[0];
+      if (!file) {
+        resultDiv.textContent = "Please select an audio or video file.";
+        progressBar.style.display = "none";
+        btn.disabled = false;
+        btn.textContent = "Transcribe";
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Fake progress animation
+      let prog = 7;
+      const fake = setInterval(() => {
+        prog = Math.min(prog + Math.random() * 17, 90);
+        progressInner.style.width = prog + "%";
+      }, 500);
+
+      try {
+        const res = await fetch('/transcribe', {
+          method: 'POST',
+          body: formData
+        });
+
+        clearInterval(fake);
+        progressInner.style.width = "100%";
+
+        if (res.ok) {
+          const blob = await res.blob();
+          if (blob.size < 3) throw new Error('Empty file');
+          // Set download link
+          const url = URL.createObjectURL(blob);
+          downloadLink.href = url;
+          downloadLink.style.display = "inline-block";
+          resultDiv.textContent = "Done! Click below to download subtitles.";
+        } else {
+          const data = await res.json().catch(()=>null);
+          resultDiv.textContent = data && data.error ? data.error : "Transcription failed.";
+        }
+      } catch (err) {
+        resultDiv.textContent = "Upload or transcription error: " + err;
+      } finally {
+        progressBar.style.display = "none";
+        btn.disabled = false;
+        btn.textContent = "Transcribe";
+        progressInner.style.width = "0";
+      }
+    });
+  </script>
+</body>
+</html>
